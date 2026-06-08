@@ -1,17 +1,19 @@
-export async function createAnnouncement(db: any, data: {
-  title: string;
-  country: number;
-  creatorId: string;
-}) {
-  const result = await db.prepare(`
+export async function createAnnouncement(
+  db: any,
+  data: {
+    title: string;
+    country: number;
+    creatorId: string;
+  },
+): Promise<number> {
+  const result = await db.query(
+    `
     INSERT INTO announcements (title, country, creator_id, created_at_utc, updated_at_utc)
-    VALUES (?, ?, ?, datetime('now'), datetime('now'))
+    VALUES ($1, $2, $3, NOW(), NOW())
     RETURNING id
-  `).bind(
-    data.title,
-    data.country,
-    data.creatorId
-  ).first();
+    `,
+    [data.title, data.country, data.creatorId],
+  );
 
-  return result?.id;
+  return result.rows[0]?.id;
 }

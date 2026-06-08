@@ -1,13 +1,25 @@
+import { sendMessage } from "../helpers/sendMessage";
 import { getSession, saveSession } from "../services/sessionService";
 
 export async function handleStart(c: any, msg: any) {
   const kv = c.env.TELEGRAM_SESSIONS;
   const userId = msg.from.id;
+  const chatId = msg.chat.id;
+  const token = c.env.TELEGRAM_BOT_TOKEN;
+
   const session = await getSession(kv, userId);
+
+  // 🔴 блок якщо вже ACTIVE
   if (session?.state === "ACTIVE" && session?.announcementId) {
-    return c.text("Finish current announcement first: send /stop");
+    await sendMessage(
+      chatId,
+      "Finish current announcement first: send /stop",
+      token,
+    );
+    return c.text("ok");
   }
-  // ініціалізуємо нову сесію / скидаємо стару
+
+  // 🔄 reset session
   await saveSession(kv, userId, {
     state: "WAITING_TITLE",
     announcementId: null,
@@ -15,5 +27,8 @@ export async function handleStart(c: any, msg: any) {
     tempCountry: null,
   });
 
-  return c.text("Send announcement title");
+  // ✅ ВАЖЛИВО: це має бути Telegram message
+  await sendMessage(chatId, "Send announcement title", token);
+
+  return c.text("ok");
 }

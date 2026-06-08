@@ -1,4 +1,5 @@
-import { createAnnouncement } from "../services/announcementService";
+import { sendMessage } from "../helpers/sendMessage";
+import { createAnnouncementApi } from "../services/apiService";
 import { getSession, saveSession } from "../services/sessionService";
 import { parseCountry } from "../utils/countryParser";
 
@@ -6,12 +7,15 @@ export async function handleText(c: any, msg: any) {
   const kv = c.env.TELEGRAM_SESSIONS;
 
   const userId = msg.from.id;
+  const chatId = msg.chat.id;
   const text = msg.text;
+  const token = c.env.TELEGRAM_BOT_TOKEN;
 
   const session = await getSession(kv, userId);
 
   if (!session) {
-    return c.text("Send /start to begin");
+    await sendMessage(chatId, "Send /start to begin", token);
+    return c.text("ok");
   }
 
   // -----------------------------
@@ -24,7 +28,8 @@ export async function handleText(c: any, msg: any) {
       state: "WAITING_COUNTRY",
     });
 
-    return c.text("Send country");
+    await sendMessage(chatId, "Send country", token);
+    return c.text("ok");
   }
 
   // -----------------------------
@@ -33,10 +38,9 @@ export async function handleText(c: any, msg: any) {
   if (session.state === "WAITING_COUNTRY") {
     const country = parseCountry(text);
 
-    const announcementId = await createAnnouncement(c.env.DB, {
+    const announcementId = await createAnnouncementApi(c.env.BOT_APIKEY, {
       title: session.tempTitle ?? "",
       country,
-      creatorId: c.env.BOT_CREATOR_USER_ID,
     });
 
     await saveSession(kv, userId, {
@@ -46,15 +50,22 @@ export async function handleText(c: any, msg: any) {
       tempCountry: null,
     });
 
-    return c.text("Announcement created. Now send photos.");
+    await sendMessage(chatId, "Announcement created. Now send photos.", token);
+
+    return c.text("ok");
   }
 
   // -----------------------------
   // 3. ACTIVE / IDLE
   // -----------------------------
   if (session.state === "ACTIVE") {
-    return c.text("Now send photos for this announcement.");
+    return c.text("ok");
   }
 
-  return c.text("Send /start to begin");
+  await sendMessage(chatId, "Send /start to begin", token);
+  return c.text("ok");
 }
+
+// ------------------
+// helper
+// ------------------

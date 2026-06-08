@@ -1,4 +1,4 @@
-import { createCollage } from "../services/collageService";
+import { createCollageApi } from "../services/apiService";
 import { uploadToImgBB } from "../services/imgbbService";
 import { getSession } from "../services/sessionService";
 import {
@@ -8,6 +8,7 @@ import {
 
 export async function handlePhoto(c: any, msg: any) {
   const kv = c.env.TELEGRAM_SESSIONS;
+
   const botToken = c.env.TELEGRAM_BOT_TOKEN;
   const imgKey = c.env.IMGBB_API_KEY;
 
@@ -18,19 +19,21 @@ export async function handlePhoto(c: any, msg: any) {
   // -----------------------------
   const session = await getSession(kv, userId);
 
+  if (!session) {
+    return c.text("No session");
+  }
+
   // -----------------------------
-  // 2. CHECK ACTIVE ANNOUNCEMENT
+  // 2. CHECK ACTIVE STATE
   // -----------------------------
-  if (!session.announcementId) {
+  if (session.state !== "ACTIVE" || !session.announcementId) {
     return c.text("No active announcement");
   }
-  if (session?.state !== "ACTIVE") {
-    return c.text("No active announcement");
-  }
+
   // -----------------------------
   // 3. GET FILE FROM TELEGRAM
   // -----------------------------
-  const fileId = msg.photo.at(-1)?.file_id;
+  const fileId = msg.photo?.at(-1)?.file_id;
 
   if (!fileId) {
     return c.text("No file found");
@@ -45,14 +48,12 @@ export async function handlePhoto(c: any, msg: any) {
   const imageUrl = await uploadToImgBB(stream, imgKey);
 
   // -----------------------------
-  // 5. SAVE COLLAGE (DB)
+  // 5. SAVE COLLAGE (POSTGRES)
   // -----------------------------
-  await createCollage(c.env.DB, {
-    announcementId: session.announcementId,
+  await createCollageApi(c.env.BOT_APIKEY, session.announcementId, {
     mediaUrl: imageUrl,
-    caption1: msg.caption ?? null,
     mediaType: 0,
-    telegramMessageId: msg.message_id,
+    caption1: msg.caption ?? undefined,
   });
 
   return c.text("image saved");

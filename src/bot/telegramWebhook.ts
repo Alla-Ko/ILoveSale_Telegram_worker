@@ -2,7 +2,6 @@ import { handlePhoto } from "./handlers/photo";
 import { handleStart } from "./handlers/start";
 import { handleStop } from "./handlers/stop";
 import { handleText } from "./handlers/text";
-import { getSession } from "./services/sessionService";
 
 export async function telegramWebhook(c: any) {
   const update = await c.req.json();
@@ -33,15 +32,16 @@ export async function telegramWebhook(c: any) {
   // --------------------------
   // NORMAL MESSAGE
   // --------------------------
+  console.log("👤 MSG:", update.message);
   const msg = update.message;
+
   if (!msg) return c.text("ok");
 
   const userId = msg.from.id;
   // security check
-  const allowed = Number(c.env.BOT_CREATOR_USER_ID);
+  const allowed = Number(c.env.TELEGRAM_ALLOWED_USER_ID);
   if (userId !== allowed) return c.text("ignored");
 
-  
   // ROUTING
   if (msg.text === "/start") return handleStart(c, msg);
   if (msg.text === "/stop") return handleStop(c, msg);

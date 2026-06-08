@@ -7,28 +7,26 @@ export async function createCollage(
     mediaType: number;
     telegramMessageId: number;
   },
-) {
-  await db
-    .prepare(
-      `
-      INSERT INTO collages (
-        announcement_id,
-        media_url,
-        caption1,
-        sort_order,
-        media_type,
-        created_at_utc,
-        updated_at_utc
-      )
-      VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    `,
+): Promise<void> {
+  await db.query(
+    `
+    INSERT INTO collages (
+      announcement_id,
+      media_url,
+      caption1,
+      sort_order,
+      media_type,
+      created_at_utc,
+      updated_at_utc
     )
-    .bind(
+    VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+    `,
+    [
       data.announcementId,
       data.mediaUrl,
       data.caption1 ?? null,
-      data.telegramMessageId, // 👈 HERE
+      data.telegramMessageId,
       data.mediaType,
-    )
-    .run();
+    ],
+  );
 }
