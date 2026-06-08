@@ -1,8 +1,15 @@
 {
-  "name": "<WORKER_NAME>",
-  "main": "src/index.ts",
-  "compatibility_date": "<COMPATIBILITY_DATE>",
-  "observability": {
-    "enabled": true
-  }
+	"name": "telegram-collector",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-06-08",
+	"observability": {
+		"enabled": true,
+	},
+	"kv_namespaces": [
+		{
+			"binding": "TELEGRAM_SESSIONS",
+			"id": "0191b79666364f7d8e65b7a42962f058",
+			"remote": true
+		}
+	],
 }
