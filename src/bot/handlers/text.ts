@@ -1,4 +1,4 @@
-import { sendMessage } from "../helpers/sendMessage";
+import { sendKeyboard } from "../helpers/sendKeyboard";
 import { createAnnouncementApi } from "../services/apiService";
 import { getSession, saveSession } from "../services/sessionService";
 import { parseCountry } from "../utils/countryParser";
@@ -14,7 +14,13 @@ export async function handleText(c: any, msg: any) {
   const session = await getSession(kv, userId);
 
   if (!session) {
-    await sendMessage(chatId, "Send /start to begin", token);
+    await sendKeyboard(chatId, "Send /start to begin", token, [
+      {
+        text: "▶ Start",
+        callback_data: "start",
+      },
+    ]);
+
     return c.text("ok");
   }
 
@@ -27,8 +33,13 @@ export async function handleText(c: any, msg: any) {
       tempTitle: text,
       state: "WAITING_COUNTRY",
     });
+    await sendKeyboard(chatId, "Send country", token, [
+      {
+        text: "⏹ Stop",
+        callback_data: "stop",
+      },
+    ]);
 
-    await sendMessage(chatId, "Send country", token);
     return c.text("ok");
   }
 
@@ -50,7 +61,17 @@ export async function handleText(c: any, msg: any) {
       tempCountry: null,
     });
 
-    await sendMessage(chatId, "Announcement created. Now send photos.", token);
+    await sendKeyboard(
+      chatId,
+      "Announcement created. Now send photos.",
+      token,
+      [
+        {
+          text: "⏹ Stop",
+          callback_data: "stop",
+        },
+      ],
+    );
 
     return c.text("ok");
   }
@@ -62,7 +83,12 @@ export async function handleText(c: any, msg: any) {
     return c.text("ok");
   }
 
-  await sendMessage(chatId, "Send /start to begin", token);
+  await sendKeyboard(chatId, "Send /start to begin", token, [
+    {
+      text: "▶ Start",
+      callback_data: "start",
+    },
+  ]);
   return c.text("ok");
 }
 

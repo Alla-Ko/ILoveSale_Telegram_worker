@@ -1,5 +1,5 @@
 import { createCollageApi } from "../services/apiService";
-import { uploadToImgBB } from "../services/imgbbService";
+import { uploadMedia } from "../services/mediaUploadService";
 import { getSession } from "../services/sessionService";
 import {
   downloadTelegramFile,
@@ -10,7 +10,6 @@ export async function handlePhoto(c: any, msg: any) {
   const kv = c.env.TELEGRAM_SESSIONS;
 
   const botToken = c.env.TELEGRAM_BOT_TOKEN;
-  const imgKey = c.env.IMGBB_API_KEY;
 
   const userId = msg.from.id;
 
@@ -43,9 +42,9 @@ export async function handlePhoto(c: any, msg: any) {
   const stream = await downloadTelegramFile(filePath, botToken);
 
   // -----------------------------
-  // 4. UPLOAD TO IMGBB
+  // 4. UPLOAD (ImgBB → tmpfile → R2)
   // -----------------------------
-  const imageUrl = await uploadToImgBB(stream, imgKey);
+  const imageUrl = await uploadMedia(stream, c.env);
 
   // -----------------------------
   // 5. SAVE COLLAGE (POSTGRES)

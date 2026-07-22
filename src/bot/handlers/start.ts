@@ -1,4 +1,4 @@
-import { sendMessage } from "../helpers/sendMessage";
+import { sendKeyboard } from "../helpers/sendKeyboard";
 import { getSession, saveSession } from "../services/sessionService";
 
 export async function handleStart(c: any, msg: any) {
@@ -11,11 +11,18 @@ export async function handleStart(c: any, msg: any) {
 
   // 🔴 блок якщо вже ACTIVE
   if (session?.state === "ACTIVE" && session?.announcementId) {
-    await sendMessage(
+    await sendKeyboard(
       chatId,
       "Finish current announcement first: send /stop",
       token,
+      [
+        {
+          text: "⏹ Stop",
+          callback_data: "stop",
+        },
+      ],
     );
+
     return c.text("ok");
   }
 
@@ -28,7 +35,12 @@ export async function handleStart(c: any, msg: any) {
   });
 
   // ✅ ВАЖЛИВО: це має бути Telegram message
-  await sendMessage(chatId, "Send announcement title", token);
+  await await sendKeyboard(chatId, "Send announcement title", token, [
+    {
+      text: "⏹ Stop",
+      callback_data: "stop",
+    },
+  ]);
 
   return c.text("ok");
 }

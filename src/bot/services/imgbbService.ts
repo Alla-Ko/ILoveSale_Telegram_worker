@@ -15,58 +15,46 @@ type ImgBBResponse =
       };
     };
 
-// -----------------------------
-// safe JSON helper
-// -----------------------------
 async function safeJson<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-// -----------------------------
-// stream → base64 (Worker-safe)
-// -----------------------------
-async function streamToBase64(
-  stream: ReadableStream<Uint8Array>,
-): Promise<string> {
-  const chunks: Uint8Array[] = [];
-  const reader = stream.getReader();
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value) chunks.push(value);
-  }
-
-  const buffer = new Uint8Array(
-    chunks.reduce((acc, chunk) => acc + chunk.length, 0),
-  );
-
-  let offset = 0;
-  for (const chunk of chunks) {
-    buffer.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  // Worker-safe base64
+function bytesToBase64(buffer: Uint8Array): string {
   let binary = "";
   for (let i = 0; i < buffer.length; i++) {
     const byte = buffer[i];
     if (byte === undefined) continue;
-
     binary += String.fromCharCode(byte);
   }
-
   return btoa(binary);
 }
 
-// -----------------------------
-// upload to ImgBB
-// -----------------------------
+export class ImgBBRateLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ImgBBRateLimitError";
+  }
+}
+
+export function isImgBBRateLimitError(error: unknown): boolean {
+  if (error instanceof ImgBBRateLimitError) return true;
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    return msg.includes("rate limit") || msg.includes("rate_limit");
+  }
+  return false;
+}
+
+function isRateLimitMessage(message: string): boolean {
+  const msg = message.toLowerCase();
+  return msg.includes("rate limit") || msg.includes("rate_limit");
+}
+
 export async function uploadToImgBB(
-  stream: ReadableStream<Uint8Array>,
+  bytes: Uint8Array,
   apiKey: string,
 ): Promise<string> {
-  const base64 = await streamToBase64(stream);
+  const base64 = bytesToBase64(bytes);
 
   const form = new FormData();
   form.append("image", base64);
@@ -76,12 +64,18 @@ export async function uploadToImgBB(
     body: form,
   });
 
+  if (res.status === 429) {
+    throw new ImgBBRateLimitError("ImgBB rate limit reached");
+  }
+
   const data = await safeJson<ImgBBResponse>(res);
 
   if (!data.success) {
-    throw new Error(
-      `ImgBB upload failed: ${data.error?.message ?? "unknown error"}`,
-    );
+    const message = data.error?.message ?? "unknown error";
+    if (isRateLimitMessage(message)) {
+      throw new ImgBBRateLimitError(`ImgBB upload failed: ${message}`);
+    }
+    throw new Error(`ImgBB upload failed: ${message}`);
   }
 
   return data.data.url;

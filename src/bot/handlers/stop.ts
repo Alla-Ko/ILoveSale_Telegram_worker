@@ -1,4 +1,4 @@
-import { sendMessage } from "../helpers/sendMessage";
+import { sendKeyboard } from "../helpers/sendKeyboard";
 import { clearSession } from "../services/sessionService";
 
 export async function handleStop(c: any, msg: any) {
@@ -9,7 +9,12 @@ export async function handleStop(c: any, msg: any) {
 
   await clearSession(kv, userId);
 
-  await sendMessage(chatId, "Stopped", token);
+  await sendKeyboard(chatId, "Announcement closed", token, [
+    {
+      text: "▶ Start",
+      callback_data: "start",
+    },
+  ]);
 
   return c.text("ok");
 }
