@@ -1,4 +1,4 @@
-const API_URL = "https://ilovesale-anons-bot.onrender.com/api";
+const API_URL = "https://nipdcmeaqgyckeoakqpn.supabase.co/functions/v1";
 
 function getHeaders(apiKey: string) {
   return {
@@ -12,6 +12,7 @@ export async function createAnnouncementApi(
   data: {
     title: string;
     country: number;
+    creatorUserName: string;
   },
 ): Promise<number> {
   const response = await fetch(`${API_URL}/announcements`, {
@@ -20,6 +21,7 @@ export async function createAnnouncementApi(
     body: JSON.stringify({
       title: data.title,
       country: data.country,
+      creatorUserName: data.creatorUserName,
     }),
   });
 

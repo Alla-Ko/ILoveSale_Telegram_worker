@@ -52,6 +52,7 @@ export async function handleText(c: any, msg: any) {
     const announcementId = await createAnnouncementApi(c.env.BOT_APIKEY, {
       title: session.tempTitle ?? "",
       country,
+      creatorUserName: "Telegram",
     });
 
     await saveSession(kv, userId, {
