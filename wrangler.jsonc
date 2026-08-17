@@ -12,4 +12,8 @@
 			"remote": true
 		}
 	],
+	"vars": {
+		"TMPFILE_BASE_URL": "https://tmpfile.link",
+		"R2_UPLOAD_BASE_URL": "https://ilovesale-storage.alla-kohanjuk.workers.dev"
+	},
 }

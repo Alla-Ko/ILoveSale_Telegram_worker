@@ -23,6 +23,26 @@ export type MediaUploadEnv = {
 
 const R2_MAX_BYTES = 25 * 1024 * 1024;
 const TMPFILE_MAX_ATTEMPTS = 3;
+const DEFAULT_TMPFILE_BASE_URL = "https://tmpfile.link";
+const DEFAULT_R2_UPLOAD_BASE_URL =
+  "https://ilovesale-storage.alla-kohanjuk.workers.dev";
+
+function resolveMediaUploadEnv(env: MediaUploadEnv): MediaUploadEnv {
+  return {
+    IMGBB_API_KEY: env.IMGBB_API_KEY ?? "",
+    IMGBB_API_KEYS: env.IMGBB_API_KEYS,
+    TMPFILE_BASE_URL:
+      env.TMPFILE_BASE_URL?.trim() || DEFAULT_TMPFILE_BASE_URL,
+    R2_UPLOAD_BASE_URL:
+      env.R2_UPLOAD_BASE_URL?.trim() || DEFAULT_R2_UPLOAD_BASE_URL,
+    R2_UPLOAD_API_KEY: env.R2_UPLOAD_API_KEY ?? "",
+  };
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
 
 async function streamToBytes(
   stream: ReadableStream<Uint8Array>,
@@ -141,23 +161,35 @@ async function uploadToR2(
 async function uploadViaImgBB(
   bytes: Uint8Array,
   env: MediaUploadEnv,
+  failures: string[],
 ): Promise<string | null> {
-  const keys = parseImgBBKeys(env.IMGBB_API_KEY, env.IMGBB_API_KEYS);
+  const keys = parseImgBBKeys(env.IMGBB_API_KEY, env.IMGBB_API_KEYS).filter(
+    Boolean,
+  );
+
+  if (keys.length === 0) {
+    failures.push("ImgBB: no API keys configured");
+    return null;
+  }
 
   for (const key of keys) {
     try {
-      return await uploadToImgBB(bytes, key);
+      console.log("media upload: trying ImgBB");
+      const url = await uploadToImgBB(bytes, key);
+      console.log("media upload: ImgBB succeeded");
+      return url;
     } catch (error) {
+      failures.push(`ImgBB: ${errorMessage(error)}`);
       if (isImgBBRateLimitError(error)) {
-        console.warn("ImgBB rate limit, trying next key");
+        console.warn("media upload: ImgBB rate limit, trying next key");
         continue;
       }
-      console.warn("ImgBB upload failed, falling back:", error);
+      console.warn("media upload: ImgBB failed, trying tmpfile");
       return null;
     }
   }
 
-  console.warn("ImgBB keys exhausted (rate limit), falling back");
+  console.warn("media upload: ImgBB keys exhausted, trying tmpfile");
   return null;
 }
 
@@ -165,18 +197,45 @@ export async function uploadMedia(
   stream: ReadableStream<Uint8Array>,
   env: MediaUploadEnv,
 ): Promise<string> {
+  const config = resolveMediaUploadEnv(env);
+  const failures: string[] = [];
   const bytes = await streamToBytes(stream);
 
-  const imgbbUrl = await uploadViaImgBB(bytes, env);
+  const imgbbUrl = await uploadViaImgBB(bytes, config, failures);
   if (imgbbUrl) {
     return imgbbUrl;
   }
 
   try {
-    return await uploadToTmpfile(bytes, env.TMPFILE_BASE_URL);
+    console.log(`media upload: trying tmpfile (${config.TMPFILE_BASE_URL})`);
+    const url = await uploadToTmpfile(bytes, config.TMPFILE_BASE_URL);
+    console.log("media upload: tmpfile succeeded");
+    return url;
   } catch (error) {
-    console.warn("tmpfile upload failed, falling back to R2:", error);
+    failures.push(`tmpfile: ${errorMessage(error)}`);
+    console.warn("media upload: tmpfile failed, trying R2:", error);
   }
 
-  return uploadToR2(bytes, env.R2_UPLOAD_BASE_URL, env.R2_UPLOAD_API_KEY);
+  if (!config.R2_UPLOAD_API_KEY) {
+    failures.push("R2: R2_UPLOAD_API_KEY is not configured");
+    throw new Error(
+      `All upload providers failed: ${failures.join(" | ")}`,
+    );
+  }
+
+  try {
+    console.log(`media upload: trying R2 (${config.R2_UPLOAD_BASE_URL})`);
+    const url = await uploadToR2(
+      bytes,
+      config.R2_UPLOAD_BASE_URL,
+      config.R2_UPLOAD_API_KEY,
+    );
+    console.log("media upload: R2 succeeded");
+    return url;
+  } catch (error) {
+    failures.push(`R2: ${errorMessage(error)}`);
+    throw new Error(
+      `All upload providers failed: ${failures.join(" | ")}`,
+    );
+  }
 }
