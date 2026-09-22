@@ -201,6 +201,25 @@ export async function uploadMedia(
   const failures: string[] = [];
   const bytes = await streamToBytes(stream);
 
+  if (config.R2_UPLOAD_API_KEY) {
+    try {
+      console.log(`media upload: trying R2 (${config.R2_UPLOAD_BASE_URL})`);
+      const url = await uploadToR2(
+        bytes,
+        config.R2_UPLOAD_BASE_URL,
+        config.R2_UPLOAD_API_KEY,
+      );
+      console.log("media upload: R2 succeeded");
+      return url;
+    } catch (error) {
+      failures.push(`R2: ${errorMessage(error)}`);
+      console.warn("media upload: R2 failed, trying ImgBB:", error);
+    }
+  } else {
+    failures.push("R2: R2_UPLOAD_API_KEY is not configured");
+    console.warn("media upload: R2 skipped, no API key");
+  }
+
   const imgbbUrl = await uploadViaImgBB(bytes, config, failures);
   if (imgbbUrl) {
     return imgbbUrl;
@@ -213,29 +232,9 @@ export async function uploadMedia(
     return url;
   } catch (error) {
     failures.push(`tmpfile: ${errorMessage(error)}`);
-    console.warn("media upload: tmpfile failed, trying R2:", error);
   }
 
-  if (!config.R2_UPLOAD_API_KEY) {
-    failures.push("R2: R2_UPLOAD_API_KEY is not configured");
-    throw new Error(
-      `All upload providers failed: ${failures.join(" | ")}`,
-    );
-  }
-
-  try {
-    console.log(`media upload: trying R2 (${config.R2_UPLOAD_BASE_URL})`);
-    const url = await uploadToR2(
-      bytes,
-      config.R2_UPLOAD_BASE_URL,
-      config.R2_UPLOAD_API_KEY,
-    );
-    console.log("media upload: R2 succeeded");
-    return url;
-  } catch (error) {
-    failures.push(`R2: ${errorMessage(error)}`);
-    throw new Error(
-      `All upload providers failed: ${failures.join(" | ")}`,
-    );
-  }
+  throw new Error(
+    `All upload providers failed: ${failures.join(" | ")}`,
+  );
 }
