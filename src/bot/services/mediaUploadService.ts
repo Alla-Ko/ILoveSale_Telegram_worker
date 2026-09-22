@@ -22,6 +22,7 @@ export type MediaUploadEnv = {
 };
 
 const R2_MAX_BYTES = 25 * 1024 * 1024;
+const R2_ATTEMPTS = 4;
 const TMPFILE_MAX_ATTEMPTS = 3;
 const DEFAULT_TMPFILE_BASE_URL = "https://tmpfile.link";
 const DEFAULT_R2_UPLOAD_BASE_URL =
@@ -122,6 +123,14 @@ async function uploadToTmpfile(
   throw new Error("tmpfile upload failed after retries");
 }
 
+function isTransientR2Status(status: number): boolean {
+  return status === 429 || status === 502 || status === 503 || status === 504;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function uploadToR2(
   bytes: Uint8Array,
   baseUrl: string,
@@ -134,28 +143,50 @@ async function uploadToR2(
   }
 
   const url = `${baseUrl.replace(/\/$/, "")}/upload`;
-  const form = new FormData();
-  form.append("file", new Blob([bytes]), "image.jpg");
+  let lastError = "R2 upload failed";
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: form,
-  });
+  for (let attempt = 1; attempt <= R2_ATTEMPTS; attempt++) {
+    const form = new FormData();
+    form.append("file", new Blob([bytes]), "image.jpg");
 
-  if (!res.ok) {
-    throw new Error(`R2 upload failed: HTTP ${res.status}`);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: form,
+      });
+
+      if (isTransientR2Status(res.status) && attempt < R2_ATTEMPTS) {
+        lastError = `R2 upload failed: HTTP ${res.status}`;
+        console.warn(`media upload: R2 attempt ${attempt} got ${res.status}, retrying`);
+        await sleep(1200 * attempt);
+        continue;
+      }
+
+      if (!res.ok) {
+        throw new Error(`R2 upload failed: HTTP ${res.status}`);
+      }
+
+      const data = (await res.json()) as R2UploadResponse;
+      if (!data.url) {
+        throw new Error("R2 upload failed: no URL in response");
+      }
+      return data.url;
+    } catch (error) {
+      lastError = errorMessage(error);
+      const transient = /HTTP 429|HTTP 502|HTTP 503|HTTP 504|network|fetch/i.test(lastError);
+      if (transient && attempt < R2_ATTEMPTS) {
+        console.warn(`media upload: R2 attempt ${attempt} failed, retrying:`, lastError);
+        await sleep(800 * attempt);
+        continue;
+      }
+      throw error;
+    }
   }
 
-  const data = (await res.json()) as R2UploadResponse;
-
-  if (!data.url) {
-    throw new Error("R2 upload failed: no URL in response");
-  }
-
-  return data.url;
+  throw new Error(lastError);
 }
 
 async function uploadViaImgBB(
@@ -213,17 +244,18 @@ export async function uploadMedia(
       return url;
     } catch (error) {
       failures.push(`R2: ${errorMessage(error)}`);
-      console.warn("media upload: R2 failed, trying ImgBB:", error);
+      console.warn("media upload: R2 failed, trying tmpfile:", error);
     }
   } else {
     failures.push("R2: R2_UPLOAD_API_KEY is not configured");
     console.warn("media upload: R2 skipped, no API key");
   }
 
-  const imgbbUrl = await uploadViaImgBB(bytes, config, failures);
-  if (imgbbUrl) {
-    return imgbbUrl;
-  }
+  // TEMP: ImgBB вимкнено — лише R2 (з повторами 502/503) → tmpfile.
+  // const imgbbUrl = await uploadViaImgBB(bytes, config, failures);
+  // if (imgbbUrl) {
+  //   return imgbbUrl;
+  // }
 
   try {
     console.log(`media upload: trying tmpfile (${config.TMPFILE_BASE_URL})`);

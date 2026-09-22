@@ -42,7 +42,7 @@ export async function handlePhoto(c: any, msg: any) {
   const stream = await downloadTelegramFile(filePath, botToken);
 
   // -----------------------------
-  // 4. UPLOAD (R2 → ImgBB → tmpfile)
+  // 4. UPLOAD (R2 → tmpfile; ImgBB тимчасово вимкнено)
   // -----------------------------
   const imageUrl = await uploadMedia(stream, c.env);
 
